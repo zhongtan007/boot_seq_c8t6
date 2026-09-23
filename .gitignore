@@ -1,0 +1,38 @@
+# ===== 固件编译输出 / 中间产物 =====
+firmware/build/
+
+# ===== 本机工具链路径 (仅本地保留, 含个人环境信息, 禁止提交) =====
+firmware/build.local.bat
+
+# ===== Keil 工程中间产物 (demo 参考工程) =====
+demo/*/Objects/
+demo/*/Listings/
+demo/*/DebugConfig/
+*.uvguix.*
+
+# ===== 通用编译产物 =====
+*.o
+*.d
+*.lst
+*.elf
+*.map
+*.hex
+*.bin
+*.axf
+*.crf
+*.lnp
+*.dep
+*.htm
+
+# ===== IDE / 编辑器 =====
+.vscode/
+.idea/
+*.bak
+
+# ===== 系统文件 =====
+Thumbs.db
+Desktop.ini
+
+# ===== Python =====
+__pycache__/
+*.pyc
