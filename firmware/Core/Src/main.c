@@ -7,8 +7,8 @@
   *   后台 (主循环): LED 心跳 + 串口命令解析
   *
   * 初始化顺序 (均为非阻塞, 无延时等待):
-  *   SysTick 1ms -> LED -> USART1 115200 -> PA1(EXTI)+PB 输出+TIM4 -> 命令行
-  */
+ *   SysTick 1ms -> LED -> USART1 115200 -> PA1(EXTI)+PB 输出+TIM4 -> 命令行
+ *   PowerSeq_Init() 返回前会自动执行一次上电时序 (上电不检测 PA1) */
 #include "stm32f10x.h"
 #include "board.h"
 #include "tick.h"
@@ -39,7 +39,7 @@ int main(void)
     Tick_Init();          /* SysTick 1ms (LED 心跳时基) */
     LED_Init();           /* PC13 心跳 LED, 默认 500ms 闪烁 */
     UART_Init();          /* USART1 115200 8N1 */
-    PowerSeq_Init();      /* PA1 感知 + PB1/PB10/PB12/PB14 时序输出 + TIM4 时基 */
+    PowerSeq_Init();      /* PA1(EXTI)+PB 时序输出+TIM4, 末尾自动跑一次上电时序 */
     Cmd_Init();           /* 开机横幅 */
 
     while (1) {

@@ -5,7 +5,7 @@
  *
  *   原工程 (H563)                本工程 (C8T6)
  *   --------------------------   --------------------------
- *   PE9  触发输入 (EXTI9)     -> PA1  触发输入 (EXTI1, 下拉输入)
+ *   PE9  触发输入 (EXTI9)     -> PA1  触发输入 (EXTI1, 浮空输入)
  *   PE10 通道 0              -> PB1  通道 0
  *   PE11 通道 1              -> PB10 通道 1
  *   PE12 通道 2              -> PB12 通道 2
@@ -14,12 +14,17 @@
  *   GPIO_PIN_x / BSRR        -> GPIO_Pin_x / BSRR (同为原子置位/复位)
  *
  * 时序算法:
- *   正时序 (PA1 上升沿 / 手动 up):   通道 i 在 Ti 时刻拉高。
+ *   正时序 (MCU 启动时自动执行 / 手动 up / PA1 上升沿): 通道 i 在 Ti 时刻拉高。
  *   反时序 (PA1 下降沿 / 手动 down): 通道 i 在 (Tmax - Ti) 时刻拉低,
  *     即"上电最后起来的先下电", 各步间隔与上电完全镜像。
  *
+ * 触发策略:
+ *   - 上电: MCU 复位启动后立即无条件跑一次正时序, 不检测 PA1。
+ *   - 下电: PA1 变低 (下降沿) -> EXTI1 中断 -> 反时序拉低。
+ *   - PA1 再次变高 (上升沿) -> 重新执行正时序。
+ *
  * 实现:
- *   1) PA1 边沿 -> EXTI1 中断 -> 读 PA1 当前电平判断方向 (F1 的 EXTI 无
+ *   1) MCU 启动 / PA1 边沿 -> 读 PA1 当前电平判断方向 (F1 的 EXTI 无
  *      独立上升/下降 pending 标志) -> 按方向计算各路目标 tick,
  *      置 pending 掩码, 启动 TIM4。
  *   2) TIM4 @ 10kHz (0.1ms): 72MHz/(PSC+1=72)/(ARR+1=100) = 10kHz。
@@ -136,9 +141,10 @@ void PowerSeq_Init(void)
 
     /* 默认时序 (写死在 MCU 逻辑里, 串口 `seq set` 可改写):
      *   PB1 = 10ms   PB10 = 0ms   PB12 = 0ms   PB14 = 0ms
-     * 上电 (PA1 上升沿): PB10/PB12/PB14 立即拉高, PB1 延迟 10ms 拉高;
-     * 下电 (PA1 下降沿): PB1 立即拉低, PB10/PB12/PB14 延迟 10ms 拉低 (反序镜像)。
-     * 默认 PA1 联动即为开启, 无需上位机配置; 串口可随时改写。 */
+     * 上电: PB10/PB12/PB14 立即拉高, PB1 延迟 10ms 拉高;
+     * 下电: PB1 立即拉低, PB10/PB12/PB14 延迟 10ms 拉低 (反序镜像)。
+     * 上电时序在 MCU 启动时自动执行一次 (见函数末尾), 不等 PA1 边沿;
+     * 串口可随时改写延迟。 */
     static const float def_ms[PWR_SEQ_CH_COUNT] = {
         PWR_SEQ_DEF_MS0, PWR_SEQ_DEF_MS1, PWR_SEQ_DEF_MS2, PWR_SEQ_DEF_MS3
     };
@@ -165,12 +171,12 @@ void PowerSeq_Init(void)
     gpio.GPIO_Speed = BOARD_PWR_OUT_SPEED;
     GPIO_Init(BOARD_PWR_PORT, &gpio);
 
-    /* PA1: 触发输入 (内部下拉, 防悬空误触发) */
+    /* PA1: 触发输入 (浮空输入) */
     gpio.GPIO_Pin  = BOARD_SENSE_PIN;
     gpio.GPIO_Mode = BOARD_SENSE_IN_MODE;
     GPIO_Init(BOARD_SENSE_PORT, &gpio);
 
-    /* EXTI1: PA1 上升沿 (上电) + 下降沿 (反序下电) 均触发中断 */
+    /* EXTI1: PA1 上升沿 (再次上电) + 下降沿 (反序下电) 均触发中断 */
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource1);
     exti.EXTI_Line    = BOARD_SENSE_EXTI_LINE;
     exti.EXTI_Mode    = EXTI_Mode_Interrupt;
@@ -201,6 +207,10 @@ void PowerSeq_Init(void)
     nvic.NVIC_IRQChannelSubPriority = 0;
     nvic.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&nvic);
+
+    /* MCU 启动即无条件执行一次正时序 (上电), 不检测 PA1 电平/边沿。
+     * 此后 PA1 仅作为下电触发: 下降沿执行反序下电, 再次变高则恢复上电。 */
+    pwrseq_start(PWR_SEQ_MODE_UP);
 }
 
 void PowerSeq_SetAll(float d0, float d1, float d2, float d3)

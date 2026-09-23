@@ -4,7 +4,7 @@
  *       AHB = 72MHz, APB2 = 72MHz, APB1 = 36MHz (APB1 定时器时钟 x2 = 72MHz)
  *
  * 资源占用一览:
- *   PA1        上电感知输入 (EXTI1, 双边沿)
+ *   PA1        下电触发输入 (EXTI1, 双边沿; 上电由固件启动后自动执行)
  *   PB1/PB10/PB12/PB14  4 路上/下电控制输出 (推挽, 复位默认低)
  *   PC13       板载 USER LED (低电平点亮, 心跳指示)
  *   PA9/PA10   USART1 TX/RX (115200 8N1, 命令口)
@@ -27,7 +27,7 @@
 #define FW_VERSION_STRING FW_NAME " v" FW_VERSION " built " __DATE__ " " __TIME__
 
 /* ------------------------------------------------------------------ */
-/* 上电感知输入: PA1                                                     */
+/* 下电触发输入: PA1 (上电不检测该脚, 由固件启动后自动跑正时序)              */
 /* ------------------------------------------------------------------ */
 #define BOARD_SENSE_GPIO_CLK    RCC_APB2Periph_GPIOA
 #define BOARD_SENSE_PORT        GPIOA
@@ -35,9 +35,9 @@
 #define BOARD_SENSE_NAME        "PA1"
 #define BOARD_SENSE_EXTI_LINE   EXTI_Line1
 #define BOARD_SENSE_IRQn        EXTI1_IRQn
-/* 输入模式: 下拉输入。板上信号为推挽输出时下拉无影响; 若为开漏/悬空信号,
- * 内部下拉可避免引脚悬空导致 EXTI 双边沿误触发。 */
-#define BOARD_SENSE_IN_MODE     GPIO_Mode_IPD
+/* 输入模式: 浮空输入 (不使用内部下拉)。要求板上 PA1 信号有明确驱动源,
+ * 悬空时电平不确定, 可能因干扰导致 EXTI 双边沿误触发。 */
+#define BOARD_SENSE_IN_MODE     GPIO_Mode_IN_FLOATING
 /* EXTI 抢占优先级: 最高, 保证边沿到时序启动的延迟最小 */
 #define BOARD_SENSE_PREEMPT_PRI 0
 
